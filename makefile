@@ -3,24 +3,20 @@ CFLAGS := -std=c++17 -Wall -Wextra -pedantic -fPIC
 
 LIB := st_reactor.so
 
-SERVER_SRC := st_reactor_server.cpp
+SERVER_SRC := react_server.cpp
 SERVER_OBJ := server.o
 
-all: run $(LIB) server 
+all:$(LIB) server 
 
 $(LIB): $(SERVER_SRC)
 	$(CC) $(CFLAGS) -shared -o $@ $^
 
 server: $(SERVER_OBJ)
-	$(CC) $(CFLAGS) -o $@ $^ -ldl
+	$(CC) $(CFLAGS) -o $@ $^ 
 
 $(SERVER_OBJ): $(SERVER_SRC)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@ -ldl
 
 clean:
 	rm -f $(LIB) server $(SERVER_OBJ)
-
-run: server $(LIB)
-	LD_LIBRARY_PATH=./st_reactor
-
 .PHONY: all clean run
