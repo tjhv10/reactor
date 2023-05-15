@@ -9,7 +9,7 @@
 #define MAX_FDS 1024
 
 using handler_t = std::function<void(int)>;
-
+extern "C"{
 struct FdHandler {
     int fd;
     handler_t handler;
@@ -22,9 +22,8 @@ struct Reactor {
     fd_set read_fds;
     pthread_t thread;
 };
-extern "C"{
+
     Reactor* createReactor() {
-        printf("hola\n");
         Reactor* reactor = new Reactor();
         reactor->active = false;
         reactor->max_fd = -1;

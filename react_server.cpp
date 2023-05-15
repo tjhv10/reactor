@@ -8,9 +8,9 @@
 #include <netinet/in.h>
 #include "st_Reactor.so"
 
-using handler_t = std::function<void(int)>;
+#define PORT 47474
 using namespace std;
-
+using handler_t = function<void(int)>;
 handler_t handleClientData(int client_fd) {
     return [client_fd](int /*unused*/) {
         std::cout << "Handling client data for fd: " << client_fd << std::endl;
@@ -34,9 +34,6 @@ handler_t handleClientData(int client_fd) {
             close(client_fd);
             return;
         }
-
-        // Process the received data
-        // ...
     };
 }
 
@@ -62,6 +59,7 @@ int main() {
     StartReactorFunc startReactorFunc = (StartReactorFunc)dlsym(reactorLibHandle, "startReactor");
     WaitForFunc waitForFunc = (WaitForFunc)dlsym(reactorLibHandle, "waitFor");
     StopReactorFunc stopReactorFunc = (StopReactorFunc)dlsym(reactorLibHandle, "stopReactor");
+
     // Create the Reactor
     void *reactor = createReactorFunc();
     if (!reactor) {
@@ -75,13 +73,13 @@ int main() {
         std::cerr << "Failed to create server socket" << std::endl;
         return 1;
     }
-    addFdFunc(handleClientData, serverSocket, reactor);
+    //addFdFunc(handleClientData(serverSocket), serverSocket, reactor);
     // Create a socket for the server
     // Set up server address
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = INADDR_ANY;
-    serverAddress.sin_port = htons(8080);  // Replace with your desired port number
+    serverAddress.sin_port = htons(PORT);  // Replace with your desired port number
 
     // Bind the socket to the server address
     if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
@@ -98,13 +96,10 @@ int main() {
     }
 
     std::cout << "Server started. Listening for connections..." << std::endl;
-
-    //add the server socket FD to reactor
-    addFdFunc(handleClientData, serverSocket, reactor);
-
     // Start the Reactor
     startReactorFunc(reactor);
-
+    //add the server socket FD to reactor
+    addFdFunc(handleClientData(serverSocket), serverSocket, reactor);
     // Accept and handle client connections
     while (true) {
         sockaddr_in clientAddress{};
@@ -119,12 +114,12 @@ int main() {
         char clientIp[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(clientAddress.sin_addr), clientIp, INET_ADDRSTRLEN);
         std::cout << "Accepted connection from: " << clientIp << std::endl;
-
+        
         // Add the client socket FD to the Reactor
-        addFdFunc(handleClientData, clientSocket, reactor);
+        addFdFunc(handleClientData(clientSocket), clientSocket, reactor);
     }
     // Start the Reactor thread
-    startReactorFunc(reactor);
+    //startReactorFunc(reactor);
 
 
     // Stop the Reactor
