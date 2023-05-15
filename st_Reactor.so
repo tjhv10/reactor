@@ -15,45 +15,28 @@ struct FdHandler {
     handler_t handler;
 };
 
-class Reactor {
-public:
-    Reactor() : active(false), max_fd(-1) {
-        FD_ZERO(&read_fds);
-    }
-
-    void stopReactor() {
-        active = false;
-    }
-
-    void startReactor() {
-        active = true;
-        if (pthread_create(&thread, nullptr, reactorThread, this) != 0) {
-            perror("pthread_create");
-            exit(1);
-        }
-    }
-
-    void addFd(handler_t handler, int fd) {
-        FdHandler fdHandler = { fd, handler };
-        fds.push_back(fdHandler);
-        FD_SET(fd, &read_fds);
-        if (fd > max_fd) {
-            max_fd = fd;
-        }
-    }
-
-    void waitFor() {
-        pthread_join(thread, nullptr);
-    }
-
-private:
+struct Reactor {
     bool active;
     std::vector<FdHandler> fds;
     int max_fd;
     fd_set read_fds;
     pthread_t thread;
+};
+extern "C"{
+    Reactor* createReactor() {
+        printf("hola\n");
+        Reactor* reactor = new Reactor();
+        reactor->active = false;
+        reactor->max_fd = -1;
+        FD_ZERO(&reactor->read_fds);
+        return reactor;
+    }
 
-    static void* reactorThread(void* arg) {
+    void stopReactor(Reactor* reactor) {
+        reactor->active = false;
+    }
+
+    void* reactorThread(void* arg) {
         Reactor* reactor = static_cast<Reactor*>(arg);
         std::unordered_map<int, handler_t> fd_to_handler;
 
@@ -73,22 +56,25 @@ private:
         }
         pthread_exit(nullptr);
     }
-};
 
-extern "C" {
-    Reactor* createReactor() {
-        return new Reactor();
+    void addFdFunc(handler_t handler, int fd, Reactor* reactor) {
+        FdHandler fdHandler = { fd, handler };
+        reactor->fds.push_back(fdHandler);
+        FD_SET(fd, &reactor->read_fds);
+        if (fd > reactor->max_fd) {
+            reactor->max_fd = fd;
+        }
     }
-    void addFd(handler_t handler, int fd){
-        Reactor().addFd(handler,fd);
+
+    void startReactor(Reactor* reactor) {
+        reactor->active = true;
+        if (pthread_create(&reactor->thread, nullptr, reactorThread, reactor) != 0) {
+            perror("pthread_create");
+            exit(1);
+        }
     }
-    void startReactor(){
-        Reactor().startReactor();
-    }
-    void stopReactor(){
-        Reactor().stopReactor();
-    }
-    void waitFor() {
-        Reactor().waitFor();
+
+    void waitFor(Reactor* reactor) {
+        pthread_join(reactor->thread, nullptr);
     }
 }

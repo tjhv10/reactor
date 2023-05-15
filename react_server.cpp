@@ -10,27 +10,34 @@
 
 using handler_t = std::function<void(int)>;
 using namespace std;
-void handleClientData(int client_fd) {
-    // Buffer to store received data from the client
-    char buffer[1024];
-    memset(buffer, 0, sizeof(buffer));
 
-    // Read data from the client socket
-    ssize_t bytesRead = read(client_fd, buffer, sizeof(buffer) - 1);
-    if (bytesRead == -1) {
-        std::cerr << "Failed to read data from client socket" << std::endl;
-        return;
-    }
+handler_t handleClientData(int client_fd) {
+    return [client_fd](int /*unused*/) {
+        std::cout << "Handling client data for fd: " << client_fd << std::endl;
 
-    if (bytesRead == 0) {
-        // Client closed the connection
-        std::cout << "Client disconnected" << std::endl;
-        close(client_fd);
-        return;
-    }
+        // Buffer to store received data from the client
+        char buffer[1024];
+        std::memset(buffer, 0, sizeof(buffer));
 
-    // Process the received data
-    std::cout << "Received data from client: " << buffer << std::endl;
+        // Read data from the client socket
+        ssize_t bytesRead = read(client_fd, buffer, sizeof(buffer) - 1);
+        if (bytesRead == -1) {
+            std::cerr << "Failed to read data from client socket" << std::endl;
+            return;
+        }
+
+        std::cout << "Received data from client: " << buffer << std::endl;
+
+        if (bytesRead == 0) {
+            // Client closed the connection
+            std::cout << "Client disconnected" << std::endl;
+            close(client_fd);
+            return;
+        }
+
+        // Process the received data
+        // ...
+    };
 }
 
 
@@ -50,12 +57,11 @@ int main() {
     using StopReactorFunc = void (*)(void*);
 
     // Retrieve function pointers from the library
-    auto createReactorFunc = (CreateReactorFunc)dlsym(reactorLibHandle, "createReactor");
-    auto addFdFunc = (AddFdFunc)dlsym(reactorLibHandle, "addFd");
+    CreateReactorFunc createReactorFunc = (CreateReactorFunc)dlsym(reactorLibHandle, "createReactor");
+    AddFdFunc addFdFunc = (AddFdFunc)dlsym(reactorLibHandle, "addFdFunc");
     StartReactorFunc startReactorFunc = (StartReactorFunc)dlsym(reactorLibHandle, "startReactor");
     WaitForFunc waitForFunc = (WaitForFunc)dlsym(reactorLibHandle, "waitFor");
     StopReactorFunc stopReactorFunc = (StopReactorFunc)dlsym(reactorLibHandle, "stopReactor");
-
     // Create the Reactor
     void *reactor = createReactorFunc();
     if (!reactor) {
@@ -63,7 +69,6 @@ int main() {
         dlclose(reactorLibHandle);
         return 1;
     }
-
     // Add the server socket FD to the Reactor
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == -1) {
@@ -72,8 +77,6 @@ int main() {
     }
     addFdFunc(handleClientData, serverSocket, reactor);
     // Create a socket for the server
-    
-
     // Set up server address
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;

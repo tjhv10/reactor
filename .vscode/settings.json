@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "string": "cpp",
-        "*.so": "cpp"
+        "*.so": "cpp",
+        "iostream": "cpp"
     }
 }
