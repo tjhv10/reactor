@@ -1,0 +1,81 @@
+#include <iostream>
+#include <vector>
+#include <unordered_map>
+#include <functional>
+#include <unistd.h>
+#include <poll.h>
+#include <pthread.h>
+
+#define MAX_FDS 1024
+
+using handler_t = std::function<void(int)>;
+
+struct FdHandler {
+    int fd;
+    handler_t handler;
+};
+
+class Reactor {
+public:
+    Reactor() : active(false), max_fd(-1) {
+    }
+    Reactor* createReactor() {
+        return new Reactor();
+    }
+    void stopReactor() {
+        active = false;
+    }
+
+    void startReactor() {
+        active = true;
+        if (pthread_create(&thread, nullptr, reactorThread, this) != 0) {
+            perror("pthread_create");
+            exit(1);
+        }
+    }
+
+    void addFd(handler_t handler, int fd) {
+        FdHandler fdHandler = { fd, handler };
+        fds.push_back(fdHandler);
+        if (fd > max_fd) {
+            max_fd = fd;
+        }
+    }
+
+    void waitFor() {
+        pthread_join(thread, nullptr);
+    }
+
+private:
+    bool active;
+    std::vector<FdHandler> fds;
+    int max_fd;
+    pthread_t thread;
+
+    static void* reactorThread(void* arg) {
+        Reactor* reactor = static_cast<Reactor*>(arg);
+        std::vector<pollfd> poll_fds(reactor->fds.size());
+        std::unordered_map<int, handler_t> fd_to_handler;
+
+        for (size_t i = 0; i < reactor->fds.size(); ++i) {
+            poll_fds[i].fd = reactor->fds[i].fd;
+            poll_fds[i].events = POLLIN;
+            fd_to_handler[reactor->fds[i].fd] = reactor->fds[i].handler;
+        }
+
+        while (reactor->active) {
+            int ret = poll(poll_fds.data(), poll_fds.size(), -1);
+            if (ret == -1) {
+                perror("poll");
+                exit(1);
+            }
+
+            for (const auto& poll_fd : poll_fds) {
+                if (poll_fd.revents & POLLIN) {
+                    fd_to_handler[poll_fd.fd](poll_fd.fd);
+                }
+            }
+        }
+        pthread_exit(nullptr);
+    }
+};
