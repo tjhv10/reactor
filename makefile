@@ -1,6 +1,5 @@
 CC := g++
 CFLAGS := -std=c++17 -Wall -Wextra -pedantic -fPIC
-
 LIB := st_reactor.so
 
 SERVER_SRC := react_server.cpp

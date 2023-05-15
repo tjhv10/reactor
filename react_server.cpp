@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include "st_Reactor.so"
 
 using handler_t = std::function<void(int)>;
 
