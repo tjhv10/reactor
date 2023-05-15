@@ -9,7 +9,7 @@
 #include "st_Reactor.so"
 
 using handler_t = std::function<void(int)>;
-
+using namespace std;
 void handleClientData(int client_fd) {
     // Buffer to store received data from the client
     char buffer[1024];
@@ -50,14 +50,14 @@ int main() {
     using StopReactorFunc = void (*)(void*);
 
     // Retrieve function pointers from the library
-    CreateReactorFunc createReactorFunc = (CreateReactorFunc)dlsym(reactorLibHandle, "createReactor");
-    AddFdFunc addFdFunc = (AddFdFunc)dlsym(reactorLibHandle, "addFd");
+    auto createReactorFunc = (CreateReactorFunc)dlsym(reactorLibHandle, "createReactor");
+    auto addFdFunc = (AddFdFunc)dlsym(reactorLibHandle, "addFd");
     StartReactorFunc startReactorFunc = (StartReactorFunc)dlsym(reactorLibHandle, "startReactor");
     WaitForFunc waitForFunc = (WaitForFunc)dlsym(reactorLibHandle, "waitFor");
     StopReactorFunc stopReactorFunc = (StopReactorFunc)dlsym(reactorLibHandle, "stopReactor");
 
     // Create the Reactor
-    void* reactor = createReactorFunc();
+    void *reactor = createReactorFunc();
     if (!reactor) {
         std::cerr << "Failed to create Reactor" << std::endl;
         dlclose(reactorLibHandle);
@@ -96,8 +96,7 @@ int main() {
 
     std::cout << "Server started. Listening for connections..." << std::endl;
 
-    // Create the Reactor and add the server socket FD to it
-    // void* reactor = createReactorFunc();
+    //add the server socket FD to reactor
     addFdFunc(handleClientData, serverSocket, reactor);
 
     // Start the Reactor

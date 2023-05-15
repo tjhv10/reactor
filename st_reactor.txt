@@ -3,7 +3,7 @@
 #include <unordered_map>
 #include <functional>
 #include <unistd.h>
-#include <poll.h>
+#include <sys/select.h>
 #include <pthread.h>
 
 #define MAX_FDS 1024
@@ -18,10 +18,9 @@ struct FdHandler {
 class Reactor {
 public:
     Reactor() : active(false), max_fd(-1) {
+        FD_ZERO(&read_fds);
     }
-    Reactor* createReactor() {
-        return new Reactor();
-    }
+
     void stopReactor() {
         active = false;
     }
@@ -37,6 +36,7 @@ public:
     void addFd(handler_t handler, int fd) {
         FdHandler fdHandler = { fd, handler };
         fds.push_back(fdHandler);
+        FD_SET(fd, &read_fds);
         if (fd > max_fd) {
             max_fd = fd;
         }
@@ -50,32 +50,45 @@ private:
     bool active;
     std::vector<FdHandler> fds;
     int max_fd;
+    fd_set read_fds;
     pthread_t thread;
 
     static void* reactorThread(void* arg) {
         Reactor* reactor = static_cast<Reactor*>(arg);
-        std::vector<pollfd> poll_fds(reactor->fds.size());
         std::unordered_map<int, handler_t> fd_to_handler;
 
-        for (size_t i = 0; i < reactor->fds.size(); ++i) {
-            poll_fds[i].fd = reactor->fds[i].fd;
-            poll_fds[i].events = POLLIN;
-            fd_to_handler[reactor->fds[i].fd] = reactor->fds[i].handler;
-        }
-
         while (reactor->active) {
-            int ret = poll(poll_fds.data(), poll_fds.size(), -1);
+            fd_set tmp_fds = reactor->read_fds;
+            int ret = select(reactor->max_fd + 1, &tmp_fds, nullptr, nullptr, nullptr);
             if (ret == -1) {
-                perror("poll");
+                perror("select");
                 exit(1);
             }
 
-            for (const auto& poll_fd : poll_fds) {
-                if (poll_fd.revents & POLLIN) {
-                    fd_to_handler[poll_fd.fd](poll_fd.fd);
+            for (const auto& fd_handler : reactor->fds) {
+                if (FD_ISSET(fd_handler.fd, &tmp_fds)) {
+                    fd_to_handler[fd_handler.fd](fd_handler.fd);
                 }
             }
         }
         pthread_exit(nullptr);
     }
 };
+
+extern "C" {
+    Reactor* createReactor() {
+        return new Reactor();
+    }
+    void addFd(handler_t handler, int fd){
+        Reactor().addFd(handler,fd);
+    }
+    void startReactor(){
+        Reactor().startReactor();
+    }
+    void stopReactor(){
+        Reactor().stopReactor();
+    }
+    void waitFor() {
+        Reactor().waitFor();
+    }
+}
