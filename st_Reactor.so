@@ -8,72 +8,113 @@
 
 #define MAX_FDS 1024
 
-using handler_t = std::function<void(int)>;
-extern "C"{
-struct FdHandler {
-    int fd;
-    handler_t handler;
-};
+using namespace std;
 
-struct Reactor {
-    bool active;
-    std::vector<FdHandler> fds;
-    int max_fd;
-    fd_set read_fds;
-    pthread_t thread;
-};
+using handler_t = function<void(int)>;
+extern "C"
+{
+    class FdHandler
+    {
+    public:
+        // Variables
+        int fd;
+        handler_t handler;
 
-    Reactor* createReactor() {
-        Reactor* reactor = new Reactor();
-        reactor->active = false;
-        reactor->max_fd = -1;
-        FD_ZERO(&reactor->read_fds);
-        return reactor;
+        // Constructor
+        FdHandler(int fd, handler_t handler) : fd(fd), handler(handler) {}
+        // Destructor
+        ~FdHandler() {}
+    };
+
+    class Reactor
+    {
+    public:
+        // Variables
+        bool active;
+        vector<FdHandler> fds;
+        int max_fd;
+        fd_set read_fds;
+        pthread_t thread;
+
+        // Constructor
+        Reactor()
+        {
+            active = false;
+            max_fd = -1;
+            FD_ZERO(&read_fds);
+        }
+        // Destructor
+        ~Reactor() {}
+    };
+
+    Reactor *createReactor()
+    {
+        return new Reactor();
     }
 
-    void stopReactor(Reactor* reactor) {
+    void stopReactor(Reactor *reactor)
+    {
         reactor->active = false;
     }
 
-    void* reactorThread(void* arg) {
-        Reactor* reactor = static_cast<Reactor*>(arg);
-        std::unordered_map<int, handler_t> fd_to_handler;
+    void *reactorThread(void *arg)
+    {
+        Reactor *reactor = static_cast<Reactor *>(arg);
+        unordered_map<int, handler_t> fd_to_handler;
+        struct timeval timeout;
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
 
-        while (reactor->active) {
+        while (reactor->active)
+        {
             fd_set tmp_fds = reactor->read_fds;
-            int ret = select(reactor->max_fd + 1, &tmp_fds, nullptr, nullptr, nullptr);
-            if (ret == -1) {
+            int ret = select(reactor->max_fd + 1, &tmp_fds, nullptr, nullptr, &timeout);
+            if (ret == -1)
+            {
                 perror("select");
                 exit(1);
             }
-
-            for (const auto& fd_handler : reactor->fds) {
-                if (FD_ISSET(fd_handler.fd, &tmp_fds)) {
-                    fd_to_handler[fd_handler.fd](fd_handler.fd);
+            else if (ret == 0)
+            {
+                continue;
+            }
+            else
+            {
+                for (const auto &fd_handler : reactor->fds)
+                {
+                    if (FD_ISSET(fd_handler.fd, &tmp_fds))
+                    {
+                        fd_to_handler[fd_handler.fd] = fd_handler.handler;
+                    }
                 }
             }
         }
         pthread_exit(nullptr);
     }
 
-    void addFdFunc(handler_t handler, int fd, Reactor* reactor) {
-        FdHandler fdHandler = { fd, handler };
+    void addFdFunc(handler_t handler, int fd, Reactor *reactor)
+    {
+        FdHandler fdHandler = {fd, handler};
         reactor->fds.push_back(fdHandler);
         FD_SET(fd, &reactor->read_fds);
-        if (fd > reactor->max_fd) {
+        if (fd > reactor->max_fd)
+        {
             reactor->max_fd = fd;
         }
     }
 
-    void startReactor(Reactor* reactor) {
+    void startReactor(Reactor *reactor)
+    {
         reactor->active = true;
-        if (pthread_create(&reactor->thread, nullptr, reactorThread, reactor) != 0) {
+        if (pthread_create(&reactor->thread, nullptr, reactorThread, reactor) != 0)
+        {
             perror("pthread_create");
             exit(1);
         }
     }
 
-    void waitFor(Reactor* reactor) {
+    void waitFor(Reactor *reactor)
+    {
         pthread_join(reactor->thread, nullptr);
     }
 }

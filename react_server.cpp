@@ -67,6 +67,7 @@ int main() {
         dlclose(reactorLibHandle);
         return 1;
     }
+    
     // Add the server socket FD to the Reactor
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == -1) {
