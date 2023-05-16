@@ -10,7 +10,7 @@
 
 using namespace std;
 
-using handler_t = function<void(int)>;
+using handler_t = function<int(int)>;
 extern "C"
 {
     class FdHandler
@@ -60,7 +60,6 @@ extern "C"
     void *reactorThread(void *arg)
     {
         Reactor *reactor = static_cast<Reactor *>(arg);
-        unordered_map<int, handler_t> fd_to_handler;
         struct timeval timeout;
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
@@ -84,7 +83,11 @@ extern "C"
                 {
                     if (FD_ISSET(fd_handler.fd, &tmp_fds))
                     {
-                        fd_to_handler[fd_handler.fd] = fd_handler.handler;
+                        int active = fd_handler.handler(fd_handler.fd);
+                        if (active == -1)
+                        {
+                            FD_CLR(fd_handler.fd, &reactor->read_fds);
+                        }
                     }
                 }
             }

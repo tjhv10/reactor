@@ -9,16 +9,17 @@
 #include "st_Reactor.so"
 
 #define PORT 47474
+#define BUFF_SIZE 1024
 using namespace std;
-using handler_t = function<void(int)>;
+using handler_t = function<int(int)>;
 handler_t handleClientData(int client_fd)
 {
-    return [client_fd](int /*unused*/)
+    return [client_fd](int /*unused*/) -> int
     {
-        cout << "Handling client data for fd: " << client_fd << endl;
+        cout << "Handling client fd: " << client_fd << endl;
 
         // Buffer to store received data from the client
-        char buffer[1024];
+        char buffer[BUFF_SIZE];
         memset(buffer, 0, sizeof(buffer));
 
         // Read data from the client socket
@@ -26,18 +27,20 @@ handler_t handleClientData(int client_fd)
         if (bytesRead == -1)
         {
             cerr << "Failed to read data from client socket" << endl;
-            return;
+            close(client_fd);
+            exit(1);
         }
-
-        cout << "Received data from client: " << buffer << endl;
-
-        if (bytesRead == 0)
+        else if (bytesRead == 0)
         {
             // Client closed the connection
             cout << "Client disconnected" << endl;
             close(client_fd);
-            return;
+            return -1;
         }
+
+        cout << "Received data from client: " << buffer << endl;
+        return 0;
+
     };
 }
 
@@ -108,8 +111,7 @@ int main()
     cout << "Server started. Listening for connections..." << endl;
     // Start the Reactor
     startReactorFunc(reactor);
-    // add the server socket FD to reactor
-    addFdFunc(handleClientData(serverSocket), serverSocket, reactor);
+    
     // Accept and handle client connections
     while (true)
     {
