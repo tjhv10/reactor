@@ -11,47 +11,52 @@
 #define PORT 47474
 using namespace std;
 using handler_t = function<void(int)>;
-handler_t handleClientData(int client_fd) {
-    return [client_fd](int /*unused*/) {
-        std::cout << "Handling client data for fd: " << client_fd << std::endl;
+handler_t handleClientData(int client_fd)
+{
+    return [client_fd](int /*unused*/)
+    {
+        cout << "Handling client data for fd: " << client_fd << endl;
 
         // Buffer to store received data from the client
         char buffer[1024];
-        std::memset(buffer, 0, sizeof(buffer));
+        memset(buffer, 0, sizeof(buffer));
 
         // Read data from the client socket
         ssize_t bytesRead = read(client_fd, buffer, sizeof(buffer) - 1);
-        if (bytesRead == -1) {
-            std::cerr << "Failed to read data from client socket" << std::endl;
+        if (bytesRead == -1)
+        {
+            cerr << "Failed to read data from client socket" << endl;
             return;
         }
 
-        std::cout << "Received data from client: " << buffer << std::endl;
+        cout << "Received data from client: " << buffer << endl;
 
-        if (bytesRead == 0) {
+        if (bytesRead == 0)
+        {
             // Client closed the connection
-            std::cout << "Client disconnected" << std::endl;
+            cout << "Client disconnected" << endl;
             close(client_fd);
             return;
         }
     };
 }
 
-
-int main() {
+int main()
+{
     // Load the st_reactor.so library
-    void* reactorLibHandle = dlopen("./st_reactor.so", RTLD_NOW);
-    if (!reactorLibHandle) {
-        std::cerr << "Failed to load st_reactor.so: " << dlerror() << std::endl;
+    void *reactorLibHandle = dlopen("./st_reactor.so", RTLD_NOW);
+    if (!reactorLibHandle)
+    {
+        cerr << "Failed to load st_reactor.so: " << dlerror() << endl;
         return 1;
     }
 
     // Function pointers to the library functions
-    using CreateReactorFunc = void* (*)();
-    using AddFdFunc = void (*)(handler_t, int, void*);
-    using StartReactorFunc = void (*)(void*);
-    using WaitForFunc = void (*)(void*);
-    using StopReactorFunc = void (*)(void*);
+    using CreateReactorFunc = void *(*)();
+    using AddFdFunc = void (*)(handler_t, int, void *);
+    using StartReactorFunc = void (*)(void *);
+    using WaitForFunc = void (*)(void *);
+    using StopReactorFunc = void (*)(void *);
 
     // Retrieve function pointers from the library
     CreateReactorFunc createReactorFunc = (CreateReactorFunc)dlsym(reactorLibHandle, "createReactor");
@@ -62,66 +67,71 @@ int main() {
 
     // Create the Reactor
     void *reactor = createReactorFunc();
-    if (!reactor) {
-        std::cerr << "Failed to create Reactor" << std::endl;
+    if (!reactor)
+    {
+        cerr << "Failed to create Reactor" << endl;
         dlclose(reactorLibHandle);
         return 1;
     }
-    
+
     // Add the server socket FD to the Reactor
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverSocket == -1) {
-        std::cerr << "Failed to create server socket" << std::endl;
+    if (serverSocket == -1)
+    {
+        cerr << "Failed to create server socket" << endl;
         return 1;
     }
-    //addFdFunc(handleClientData(serverSocket), serverSocket, reactor);
-    // Create a socket for the server
-    // Set up server address
+    // addFdFunc(handleClientData(serverSocket), serverSocket, reactor);
+    //  Create a socket for the server
+    //  Set up server address
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = INADDR_ANY;
-    serverAddress.sin_port = htons(PORT);  // Replace with your desired port number
+    serverAddress.sin_port = htons(PORT); // Replace with your desired port number
 
     // Bind the socket to the server address
-    if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
-        std::cerr << "Failed to bind server socket" << std::endl;
+    if (bind(serverSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) == -1)
+    {
+        cerr << "Failed to bind server socket" << endl;
         close(serverSocket);
         return 1;
     }
 
     // Listen for client connections
-    if (listen(serverSocket, SOMAXCONN) == -1) {
-        std::cerr << "Failed to listen on server socket" << std::endl;
+    if (listen(serverSocket, SOMAXCONN) == -1)
+    {
+        cerr << "Failed to listen on server socket" << endl;
         close(serverSocket);
         return 1;
     }
 
-    std::cout << "Server started. Listening for connections..." << std::endl;
+    cout << "Server started. Listening for connections..." << endl;
     // Start the Reactor
     startReactorFunc(reactor);
-    //add the server socket FD to reactor
+    // add the server socket FD to reactor
     addFdFunc(handleClientData(serverSocket), serverSocket, reactor);
     // Accept and handle client connections
-    while (true) {
+    while (true)
+    {
         sockaddr_in clientAddress{};
         socklen_t clientAddressLength = sizeof(clientAddress);
-        int clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddress, &clientAddressLength);
-        if (clientSocket == -1) {
-            std::cerr << "Failed to accept client connection" << std::endl;
+        int clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &clientAddressLength);
+        if (clientSocket == -1)
+        {
+            cerr << "Failed to accept client connection" << endl;
             continue;
         }
 
         // Convert client IP address to string format
         char clientIp[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(clientAddress.sin_addr), clientIp, INET_ADDRSTRLEN);
-        std::cout << "Accepted connection from: " << clientIp << std::endl;
-        
+        cout << "Accepted connection from: " << clientIp << endl;
+
         // Add the client socket FD to the Reactor
         addFdFunc(handleClientData(clientSocket), clientSocket, reactor);
     }
     // Start the Reactor thread
-    //startReactorFunc(reactor);
-
+    // startReactorFunc(reactor);
 
     // Stop the Reactor
     stopReactorFunc(reactor);
