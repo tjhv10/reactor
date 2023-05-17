@@ -47,7 +47,7 @@ extern "C"
         ~Reactor() {}
     };
 
-    Reactor *createReactor()
+    void* createReactor()
     {
         return new Reactor();
     }
@@ -95,7 +95,7 @@ extern "C"
         pthread_exit(nullptr);
     }
 
-    void addFdFunc(handler_t handler, int fd, Reactor *reactor)
+    void addFd(Reactor *reactor, int fd, handler_t handler)
     {
         FdHandler fdHandler = {fd, handler};
         reactor->fds.push_back(fdHandler);
