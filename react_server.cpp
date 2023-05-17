@@ -8,7 +8,7 @@
 #include <netinet/in.h>
 #include "st_Reactor.so"
 
-#define PORT 47474
+#define PORT 9034
 #define BUFF_SIZE 1024
 using namespace std;
 using handler_t = function<int(int)>;
@@ -55,15 +55,16 @@ int main()
     }
 
     // Function pointers to the library functions
-    using CreateReactorFunc = void *(*)();
-    using AddFdFunc = void (*)(handler_t, int, void *);
-    using StartReactorFunc = void (*)(void *);
-    using WaitForFunc = void (*)(void *);
-    using StopReactorFunc = void (*)(void *);
+    using CreateReactorFunc = void* (*)();
+    using AddFd = void (*)(void*, int, std::function<int(int)>);
+    using StartReactorFunc = void (*)(void*);
+    using WaitForFunc = void (*)(void*);
+    using StopReactorFunc = void (*)(void*);   
+
 
     // Retrieve function pointers from the library
     CreateReactorFunc createReactorFunc = (CreateReactorFunc)dlsym(reactorLibHandle, "createReactor");
-    AddFdFunc addFdFunc = (AddFdFunc)dlsym(reactorLibHandle, "addFdFunc");
+    AddFd addFd = (AddFd)dlsym(reactorLibHandle, "addFd");
     StartReactorFunc startReactorFunc = (StartReactorFunc)dlsym(reactorLibHandle, "startReactor");
     WaitForFunc waitForFunc = (WaitForFunc)dlsym(reactorLibHandle, "waitFor");
     StopReactorFunc stopReactorFunc = (StopReactorFunc)dlsym(reactorLibHandle, "stopReactor");
@@ -76,7 +77,6 @@ int main()
         dlclose(reactorLibHandle);
         return 1;
     }
-
     // Add the server socket FD to the Reactor
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == -1)
@@ -84,8 +84,6 @@ int main()
         cerr << "Failed to create server socket" << endl;
         return 1;
     }
-    // addFdFunc(handleClientData(serverSocket), serverSocket, reactor);
-    //  Create a socket for the server
     //  Set up server address
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
@@ -130,11 +128,8 @@ int main()
         cout << "Accepted connection from: " << clientIp << endl;
 
         // Add the client socket FD to the Reactor
-        addFdFunc(handleClientData(clientSocket), clientSocket, reactor);
+        addFd(reactor, clientSocket, handleClientData(clientSocket));
     }
-    // Start the Reactor thread
-    // startReactorFunc(reactor);
-
     // Stop the Reactor
     stopReactorFunc(reactor);
 
@@ -143,6 +138,5 @@ int main()
 
     // Cleanup
     dlclose(reactorLibHandle);
-
     return 0;
 }
